@@ -118,7 +118,7 @@ class Options {
       var parsing = Options.defaultOptions;
       var decoded = <IniOptionsInput>ini.decode(str);
       if (typeof decoded.proxy.host === 'string') parsing.proxy.host = decoded.proxy.host;
-      if (typeof decoded.proxy.port === 'number') parsing.proxy.port = decoded.proxy.port;
+      if (typeof decoded.proxy.port === 'string') parsing.proxy.port = decoded.proxy.port;
       if (typeof decoded.proxy.type === 'string') {
         switch(decoded.proxy.type.toLowerCase()) {
         case 'socks':
