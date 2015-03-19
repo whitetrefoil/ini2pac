@@ -60,9 +60,9 @@ interface IniOptionsInput {
     port: string
     type: string
   }
-  exception?: string[]
-  nation?: string[]
-  company?: string[]
+  exception?: Object
+  nation?: Object
+  company?: Object
 }
 
 
