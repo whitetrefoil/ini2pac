@@ -3,7 +3,8 @@
   "version"        : "0.0.1-alpha.1",
   "main"           : "bin/ini2pac",
   "dependencies"   : {
-    "ini": "^1.3.3"
+    "ini"   : "^1.3.3",
+    "lodash": "^3.5.0"
   },
   "devDependencies": {
     "typescript": "^1.4.1"
