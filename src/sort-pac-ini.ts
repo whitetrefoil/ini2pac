@@ -30,7 +30,7 @@ var sortPacIni = function sortPacIni(path:string):void {
     _(parsed[type])
       .keys()
       .sortBy(function(key) {
-        return key.replace(/^\*\./, '');
+        return key.replace(/^\*\.*/, '');
       })
       .forEach(function(key) {
         sorted[type][key] = true;
@@ -41,12 +41,6 @@ var sortPacIni = function sortPacIni(path:string):void {
   parsed.exception = sorted.exception;
   parsed.nation = sorted.nation;
   parsed.company = sorted.company;
-
-  console.log('original');
-  console.log(ini.encode(parsed));
-  console.log('replaced');
-  console.log(ini.encode(parsed).replace(/=true$/gm, ''));
-
 
   fs.writeFileSync(path + '.sorted', ini.encode(parsed).replace(/=true$/gm, ''), {encoding: 'utf8'});
 };
