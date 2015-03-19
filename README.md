@@ -5,6 +5,6 @@ TODO
 
 - [ ] Optimize performance
 - [ ] Support CLI arguments
-- [ ] Sorting utility
+- [x] Sorting utility
 - [ ] Error handling
 - [ ] Encryption
