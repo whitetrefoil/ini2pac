@@ -1,6 +1,7 @@
 /// <reference path='../references/node/node.d.ts' />
 /// <reference path='../references/ini/ini.d.ts' />
 
+
 /*
 
  ;Example:
@@ -29,43 +30,51 @@
 
  */
 
+
+enum ProxyType {Http, Socks4, Socks5}
+
+interface PacGroup {
+  nation?: string
+  company?: string
+}
+
+interface IniOptions {
+  proxy: {
+    host: string
+    port: string
+    type: ProxyType
+  }
+  exception?: DomainsAndKeywords
+  nation?: DomainsAndKeywords
+  company?: DomainsAndKeywords
+}
+
+interface DomainsAndKeywords {
+  domains?: string[]
+  keywords?: string[]
+}
+
+interface IniOptionsInput {
+  proxy: {
+    host: string
+    port: string
+    type: string
+  }
+  exception?: string[]
+  nation?: string[]
+  company?: string[]
+}
+
+
 var fs = require('fs');
 var util = require('util');
 var ini = require('ini');
+
 
 const HEAD = 'function FindProxyForURL(url,host){host=host.toLowerCase();';
 const RETURN_PROXY = 'return "{{TYPE}} {{HOST}}:{{PORT}}";';
 const RETURN_DIRECT = 'return "DIRECT";';
 const TAIL = '}';
-
-enum ProxyType {Http, Socks4, Socks5}
-
-interface PacGroup {
-  nation?: string;
-  company?: string;
-}
-
-interface IniOptions {
-  proxy: {
-    host: string;
-    port: string;
-    type: ProxyType;
-  }
-  exception?: string[];
-  nation?: string[];
-  company?: string[];
-}
-
-interface IniOptionsInput {
-  proxy: {
-    host: string;
-    port: string;
-    type: string;
-  }
-  exception?: string[];
-  nation?: string[];
-  company?: string[];
-}
 
 class Options {
   private static defaultOptions:IniOptions = {
@@ -75,11 +84,34 @@ class Options {
       type: ProxyType.Http
     },
     exception: [],
-    nation: [],
-    company: []
+    nation: {
+      domains: [],
+      keywords: []
+    },
+    company:  {
+      domains: [],
+      keywords: []
+    }
   };
 
   private iniOptions:IniOptions;
+
+  private static parseDomainsAndKeywords(input:string[]):DomainsAndKeywords {
+    var domains = [];
+    var keywords = [];
+    input.forEach(function(segment:string):void {
+      if (segment.indexOf('*') >= 0) {
+        keywords.push(segment.replace(/\*/g, ''));
+      } else {
+        domains.push(segment);
+      }
+    });
+
+    return {
+      domains: domains.sort(),
+      keywords: keywords.sort()
+    };
+  }
 
   private static parse(str:string):IniOptions {
     try {
@@ -99,9 +131,9 @@ class Options {
           parsing.proxy.type = ProxyType.Http;
         }
       }
-      if (decoded.exception != null) parsing.exception = Object.keys(decoded.exception);
-      if (decoded.nation != null) parsing.nation = Object.keys(decoded.nation);
-      if (decoded.company != null) parsing.company = Object.keys(decoded.company);
+      if (decoded.exception != null) parsing.exception = Options.parseDomainsAndKeywords(Object.keys(decoded.exception));
+      if (decoded.nation != null) parsing.nation = Options.parseDomainsAndKeywords(Object.keys(decoded.nation));
+      if (decoded.company != null) parsing.company = Options.parseDomainsAndKeywords(Object.keys(decoded.company));
     } catch (e) {
       console.error('Failed to parse the INI file.  Check the details below:');
       console.error(e.stack);
@@ -122,53 +154,55 @@ class Options {
     }
   }
 
-  private static patternToCondition(pattern:string):string {
-    return pattern.indexOf('*') >= 0
-      ? '||dnsDomainIs(host,"' + pattern + '")'
-      : '||shExpMatch(host,"' + pattern + '")';
-  }
+  compose(isCompanyIncluded = false):string {
+    var exception = '';
+    var match = '';
 
-  compose():PacGroup {
     try {
-      var exception = '';
-      var nation = '';
-      var company = '';
       var returnProxy = RETURN_PROXY
         .replace('{{HOST}}', this.iniOptions.proxy.host)
         .replace('{{PORT}}', this.iniOptions.proxy.port)
         .replace('{{TYPE}}', Options.convertProxyTypeToPacFormat(this.iniOptions.proxy.type));
 
       // Exception
-      if (this.iniOptions.exception.length > 0) {
-        this.iniOptions.exception.forEach(function(cond:string) {
-          exception += Options.patternToCondition(cond);
-        });
+      this.iniOptions.exception.keywords.forEach(function(keyword:string) {
+        exception += '||(url.indexOf("' + keyword + '") >= 0)'
+      });
+      this.iniOptions.exception.domains.forEach(function(domain:string) {
+        exception += '||dnsDomainIs(host,"' + domain + '")'
+      });
+      if (exception !== '') {
         exception = 'if(' + exception.substr(2) + ')' + RETURN_DIRECT + 'else ';
       }
 
-      // Nation
-      this.iniOptions.nation.forEach(function(cond:string) {
-        nation += Options.patternToCondition(cond);
+      // Keywords
+      this.iniOptions.nation.keywords.forEach(function(keyword:string) {
+        match += '||(url.indexOf("' + keyword + '") >= 0)'
       });
+      if (isCompanyIncluded === true) {
+        this.iniOptions.company.keywords.forEach(function(keyword:string) {
+          match += '||(url.indexOf("' + keyword + '") >= 0)'
+        });
+      }
 
-      // Company
-      company = nation;
-      this.iniOptions.company.forEach(function(cond:string) {
-        company += Options.patternToCondition(cond);
+      // Domains
+      this.iniOptions.nation.domains.forEach(function(domain:string) {
+        match += '||dnsDomainIs(host,"' + domain + '")'
       });
+      if (isCompanyIncluded === true) {
+        this.iniOptions.company.domains.forEach(function(domain:string) {
+          match += '||dnsDomainIs(host,"' + domain + '")'
+        });
+      }
 
-      nation = nation.length === 0 ? '' : exception + 'if(' + nation.substr(2) + ')' + returnProxy + 'else ';
-      company = company.length === 0 ? '' : exception + 'if(' + company.substr(2) + ')' + returnProxy + 'else ';
+      match = match.length === 0 ? '' : exception + 'if(' + match.substr(2) + ')' + returnProxy + 'else ';
     } catch(e) {
       console.error('Failed to compose the PAC files.  Check the details below:');
       console.error(e.stack);
       throw(e);
     }
 
-    return {
-      nation: HEAD + nation + RETURN_DIRECT + TAIL,
-      company: HEAD + company + RETURN_DIRECT + TAIL
-    };
+    return HEAD + match + RETURN_DIRECT + TAIL;
   }
 
   constructor(iniStr:string) {
@@ -198,10 +232,9 @@ function writePac(filename:string, str:string, encoding = 'utf8'):void {
 var ini2Pac = function ini2Pac(path:string):void {
   var iniFileContent = readIni(path);
   var options = new Options(iniFileContent);
-  var pacGroup = options.compose();
 
-  writePac('nation.pac', pacGroup.nation);
-  writePac('company.pac', pacGroup.company);
+  writePac('nation.pac', options.compose());
+  writePac('company.pac', options.compose(true));
 
   util.log('DONE!');
 };
