@@ -131,7 +131,9 @@ class Options {
           parsing.proxy.type = ProxyType.Http;
         }
       }
-      if (decoded.exception != null) parsing.exception = Options.parseDomainsAndKeywords(Object.keys(decoded.exception));
+      parsing.exception = decoded.exception != null
+        ? Options.parseDomainsAndKeywords(Object.keys(decoded.exception))
+        : [];
       if (decoded.nation != null) parsing.nation = Options.parseDomainsAndKeywords(Object.keys(decoded.nation));
       if (decoded.company != null) parsing.company = Options.parseDomainsAndKeywords(Object.keys(decoded.company));
     } catch (e) {
@@ -157,7 +159,6 @@ class Options {
   compose(isCompanyIncluded = false):string {
     var exception = '';
     var match = '';
-
     try {
       var returnProxy = RETURN_PROXY
         .replace('{{HOST}}', this.iniOptions.proxy.host)
@@ -165,12 +166,18 @@ class Options {
         .replace('{{TYPE}}', Options.convertProxyTypeToPacFormat(this.iniOptions.proxy.type));
 
       // Exception
-      this.iniOptions.exception.keywords.forEach(function(keyword:string) {
-        exception += '||(url.indexOf("' + keyword + '") >= 0)'
-      });
-      this.iniOptions.exception.domains.forEach(function(domain:string) {
-        exception += '||dnsDomainIs(host,"' + domain + '")'
-      });
+      if (this.iniOptions.exception != null) {
+        if (this.iniOptions.exception.keywords != null) {
+          this.iniOptions.exception.keywords.forEach(function(keyword:string) {
+            exception += '||(url.indexOf("' + keyword + '") >= 0)'
+          });
+        }
+        if (this.iniOptions.exception.domains != null) {
+          this.iniOptions.exception.domains.forEach(function(domain:string) {
+            exception += '||dnsDomainIs(host,"' + domain + '")'
+          });
+        }
+      }
       if (exception !== '') {
         exception = 'if(' + exception.substr(2) + ')' + RETURN_DIRECT + 'else ';
       }
